@@ -1,11 +1,16 @@
 <script setup>
-import { onMounted, ref } from "vue";
+import { computed, onMounted, ref } from "vue";
 import { useTodoStore } from "../stores/todo";
 import { RouterLink } from "vue-router";
+import Loading from "../components/Loading.vue";
 
 const todoStore = useTodoStore();
 const todoText = ref("");
 const isLoading = ref(false);
+const selectedStatus = ref("Pending");
+const filterTodoList = computed(() => {
+  return todoStore.list.filter((todo) => todo.status === selectedStatus.value);
+});
 
 onMounted(async () => {
   isLoading.value = true;
@@ -47,33 +52,87 @@ const deleteTodo = async (todoId) => {
     console.log("error", error);
   }
 };
+
+const changeStatus = async (event, todoId) => {
+  if (event.target.checked) {
+    try {
+      isLoading.value = true;
+      await todoStore.editTodo({ status: "Done" }, todoId);
+      await todoStore.loadTodos();
+      isLoading.value = false;
+    } catch (error) {
+      console.log("error", error);
+    }
+  } else {
+    try {
+      isLoading.value = true;
+      await todoStore.editTodo({ status: "Doing" }, todoId);
+      await todoStore.loadTodos();
+      isLoading.value = false;
+    } catch (error) {
+      console.log("error", error);
+    }
+  }
+};
+
+const changeSelectedStatus = async (newStatus) => {
+  selectedStatus.value = newStatus;
+};
 </script>
 
 <template>
   <div>
-    <div>
-      <input type="text" v-model="todoText" /><button
-        @click="addTodo(todoText)"
-      >
-        Add
-      </button>
+    <div class="flex gap-2">
+      <input
+        class="input input-bordered w-full"
+        placeholder="Todo..."
+        type="text"
+        v-model="todoText"
+      /><button class="btn btn-primary" @click="addTodo(todoText)">Add</button>
     </div>
-    <div v-if="isLoading"><h2>Loading</h2></div>
-    <ul>
-      <li v-for="todo in todoStore.list" :key="todo.id">
-        {{ todo.name }}
-        <select v-model="todo.status" @change="editStatus(todo, todo.id)">
-          <option>Select Status</option>
-          <option v-for="status in todoStore.statuses" :value="status">
-            {{ status }}
-          </option>
-        </select>
-        <RouterLink :to="{ name: 'todo-edit', params: { id: todo.id } }"
-          ><button>Edit</button></RouterLink
-        >
+    <Loading v-if="isLoading" />
 
-        <button @click="deleteTodo(todo.id)">Delete</button>
-      </li>
-    </ul>
+    <div class="flex my-4">
+      <div role="tablist" class="tabs tabs-boxed">
+        <a
+          :key="index"
+          role="tab"
+          v-for="status in todoStore.statuses"
+          :class="status === selectedStatus ? 'tab tab-active' : 'tab'"
+          @click="changeSelectedStatus(status)"
+        >
+          {{ status }}
+        </a>
+      </div>
+    </div>
+
+    <div
+      class="flex items-center justify-between mt-2"
+      v-for="todo in filterTodoList"
+      :key="todo.id"
+    >
+      <div>
+        <input
+          class="checkbox"
+          type="checkbox"
+          :checked="todo.status === 'Done'"
+          @change="changeStatus($event, todo.id)"
+        />
+      </div>
+      <div :class="todo.status === 'Done' ? 'line-through' : ''">
+        {{ todo.name }}
+      </div>
+      <div class="flex gap-2">
+        <RouterLink :to="{ name: 'todo-edit', params: { id: todo.id } }">
+          <button class="btn btn-square btn-outline">
+            <font-awesome-icon icon="pen-to-square" />
+          </button>
+        </RouterLink>
+
+        <button class="btn btn-square btn-outline" @click="deleteTodo(todo.id)">
+          <font-awesome-icon icon="trash" />
+        </button>
+      </div>
+    </div>
   </div>
 </template>
